@@ -1,0 +1,7 @@
+insert into businesses(id,name,slug,program,goal,reward,terms,privacy,status,color) values('10000000-0000-4000-8000-000000000001','Bruma Café','bruma','Tu pausa tiene recompensa',8,'Un café de la casa · demostración','Un sello por compra elegible. Canje por un café de la casa. Sin valor comercial en esta demostración.','Demostración: los datos se usan exclusivamente para mostrar el programa. No utilices datos personales reales.','active','#194d3b');
+insert into memberships(user_id,business_id,role,email) values('20000000-0000-4000-8000-000000000001',null,'platform','plataforma@demo.local'),('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','admin','admin@demo.local'),('20000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','cashier','caja@demo.local');
+select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000002',false);
+select register_customer('bruma','Mariana López','mariana@example.test','',false,true);
+select register_customer('bruma','Diego Torres','diego@example.test','',false,true);
+select register_customer('bruma','Ana García','ana@example.test','',false,true);
+do $$declare c customers; i int; begin for c in select * from customers loop for i in 1..case when c.name like 'Mariana%' then 7 when c.name like 'Diego%' then 10 else 2 end loop perform record_operation(c.business_id,c.scan_token,'stamp',gen_random_uuid()); end loop; end loop; end$$;

@@ -1,0 +1,40 @@
+{
+  "name": "loyalty-program",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:db": "tsx --test tests/*.db.ts",
+    "db:local": "bash scripts/local-db.sh",
+    "test:browser": "playwright test",
+    "format": "prettier --write app components lib tests scripts/*.ts scripts/*.mjs *.ts *.mjs *.json"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.80.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "postgres": "^3.4.7",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^24.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
