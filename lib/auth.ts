@@ -7,7 +7,7 @@ import { verifyPassword } from "./password";
 
 export type Business = {
   id: string; slug: string; name: string; tagline: string; brand_primary: string; brand_soft: string;
-  goal: number; reward: string; eligible_service: string; max_visits_per_day: number; timezone: string; active: number;
+  goal: number; reward: string; eligible_service: string; max_visits_per_day: number; timezone: string; active: boolean;
 };
 export type Staff = { userId: string; email: string; role: "platform" | "admin" | "staff"; business: Business | null };
 
@@ -19,15 +19,15 @@ const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 export async function login(email: string, password: string): Promise<boolean> {
   email = email.trim().toLowerCase();
   const since = Date.now() - 15 * 60_000;
-  q.run("delete from login_attempts where at < ?", since);
-  if ((q.get<{ n: number }>("select count(*) n from login_attempts where email=?", email)?.n ?? 0) >= 5) return false;
-  const u = q.get<{ id: string; password_hash: string }>("select id, password_hash from users where email=?", email);
+  await q.run("delete from login_attempts where at < $1", since);
+  if (((await q.get<{ n: number }>("select count(*)::int n from login_attempts where email=$1", email))?.n ?? 0) >= 5) return false;
+  const u = await q.get<{ id: string; password_hash: string }>("select id, password_hash from users where email=$1", email);
   // verifyPassword se ejecuta siempre para no revelar si el correo existe por tiempo de respuesta.
   const ok = verifyPassword(password, u?.password_hash ?? "scrypt$00$00") && !!u;
-  if (!ok) { q.run("insert into login_attempts(email, at) values (?,?)", email, Date.now()); return false; }
-  q.run("delete from login_attempts where email=?", email);
+  if (!ok) { await q.run("insert into login_attempts(email, at) values ($1,$2)", email, Date.now()); return false; }
+  await q.run("delete from login_attempts where email=$1", email);
   const token = randomBytes(32).toString("hex");
-  q.run("insert into sessions(token_hash,user_id,expires_at) values (?,?,?)", sha(token), u!.id, new Date(Date.now() + TTL_MS).toISOString());
+  await q.run("insert into sessions(token_hash,user_id,expires_at) values ($1,$2,$3)", sha(token), u!.id, new Date(Date.now() + TTL_MS).toISOString());
   (await cookies()).set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: TTL_MS / 1000 });
   return true;
 }
@@ -35,18 +35,18 @@ export async function login(email: string, password: string): Promise<boolean> {
 export async function logout() {
   const jar = await cookies();
   const t = jar.get(COOKIE)?.value;
-  if (t) q.run("delete from sessions where token_hash=?", sha(t));
+  if (t) await q.run("delete from sessions where token_hash=$1", sha(t));
   jar.delete(COOKIE);
 }
 
 export async function getStaff(): Promise<Staff | null> {
   const t = (await cookies()).get(COOKIE)?.value;
   if (!t) return null;
-  const row = q.get<{ user_id: string; expires_at: string; email: string; role: Staff["role"]; business_id: string | null }>(
-    `select s.user_id, s.expires_at, u.email, m.role, m.business_id from sessions s
-     join users u on u.id=s.user_id join memberships m on m.user_id=u.id where s.token_hash=?`, sha(t));
-  if (!row || row.expires_at < new Date().toISOString()) return null;
-  const business = row.business_id ? q.get<Business>("select * from businesses where id=?", row.business_id) ?? null : null;
+  const row = await q.get<{ user_id: string; email: string; role: Staff["role"]; business_id: string | null }>(
+    `select s.user_id, u.email, m.role, m.business_id from sessions s
+     join users u on u.id=s.user_id join memberships m on m.user_id=u.id where s.token_hash=$1 and s.expires_at > now()`, sha(t));
+  if (!row) return null;
+  const business = row.business_id ? (await q.get<Business>("select * from businesses where id=$1", row.business_id)) ?? null : null;
   return { userId: row.user_id, email: row.email, role: row.role, business };
 }
 

@@ -8,13 +8,13 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
   const s = await requireStaff(["admin", "staff"]);
   const { q } = await searchParams;
   const like = `%${(q ?? "").replace(/[\\%_]/g, "\\$&")}%`;
-  const customers = db.all<{ id: string; name: string; email: string; qr_code: string }>(
-    "select id, name, email, qr_code from customers where business_id=? and (name like ? escape '\\' or email like ? escape '\\') order by created_at desc limit 50",
-    s.business!.id, like, like);
-  const visits = db.all<{ customer_id: string; n: number }>(
-    "select customer_id, count(*) n from visits where business_id=? and voided_at is null and reward_id is null group by customer_id", s.business!.id);
-  const rewards = db.all<{ id: string; customer_id: string; description: string }>(
-    "select id, customer_id, description from rewards where business_id=? and redeemed_at is null", s.business!.id);
+  const customers = await db.all<{ id: string; name: string; email: string; qr_code: string }>(
+    "select id, name, email, qr_code from customers where business_id=$1 and (name ilike $2 or email ilike $2) order by created_at desc limit 50",
+    s.business!.id, like);
+  const visits = await db.all<{ customer_id: string; n: number }>(
+    "select customer_id, count(*)::int n from visits where business_id=$1 and voided_at is null and reward_id is null group by customer_id", s.business!.id);
+  const rewards = await db.all<{ id: string; customer_id: string; description: string }>(
+    "select id, customer_id, description from rewards where business_id=$1 and redeemed_at is null", s.business!.id);
   const progress = (id: string) => visits.find((v) => v.customer_id === id)?.n ?? 0;
   return (
     <>

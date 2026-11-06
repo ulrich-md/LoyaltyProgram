@@ -19,7 +19,7 @@ async function save(fd: FormData) {
   const parsed = schema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return;
   const d = parsed.data;
-  q.run("update businesses set tagline=?,goal=?,reward=?,eligible_service=?,max_visits_per_day=?,brand_primary=?,brand_soft=? where id=?",
+  await q.run("update businesses set tagline=$1,goal=$2,reward=$3,eligible_service=$4,max_visits_per_day=$5,brand_primary=$6,brand_soft=$7 where id=$8",
     d.tagline, d.goal, d.reward, d.eligible_service, d.max_visits_per_day, d.brand_primary, d.brand_soft, s.business!.id);
   revalidatePath("/panel", "layout");
 }

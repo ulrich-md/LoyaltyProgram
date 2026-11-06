@@ -10,7 +10,7 @@ async function createBusiness(fd: FormData) {
   await requireStaff(["platform"]);
   const p = z.object({ slug: z.string().regex(/^[a-z0-9-]{2,40}$/), name: z.string().trim().min(2).max(80) }).safeParse(Object.fromEntries(fd));
   if (!p.success) return;
-  try { q.run("insert into businesses(id,slug,name) values (?,?,?)", crypto.randomUUID(), p.data.slug, p.data.name); } catch { /* slug duplicado */ }
+  try { await q.run("insert into businesses(slug,name) values ($1,$2)", p.data.slug, p.data.name); } catch { /* slug duplicado */ }
   revalidatePath("/plataforma");
 }
 
@@ -22,11 +22,10 @@ async function addStaff(fd: FormData) {
     password: z.string().min(10).max(72), role: z.enum(["admin", "staff"]),
   }).safeParse(Object.fromEntries(fd));
   if (!p.success) return;
-  const id = crypto.randomUUID();
   try {
-    tx(() => {
-      q.run("insert into users(id,email,password_hash) values (?,?,?)", id, p.data.email, hashPassword(p.data.password));
-      q.run("insert into memberships(user_id,business_id,role) values (?,?,?)", id, p.data.business_id, p.data.role);
+    await tx(async (t) => {
+      const u = (await t.get<{ id: string }>("insert into users(email,password_hash) values ($1,$2) returning id", p.data.email, hashPassword(p.data.password)))!;
+      await t.run("insert into memberships(user_id,business_id,role) values ($1,$2,$3)", u.id, p.data.business_id, p.data.role);
     });
   } catch { return; /* correo ya existe */ }
   revalidatePath("/plataforma");
@@ -34,7 +33,7 @@ async function addStaff(fd: FormData) {
 
 export default async function Plataforma() {
   await requireStaff(["platform"]);
-  const businesses = q.all<{ id: string; slug: string; name: string }>("select id, slug, name from businesses order by created_at");
+  const businesses = await q.all<{ id: string; slug: string; name: string }>("select id, slug, name from businesses order by created_at");
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex justify-between"><h1 className="text-xl font-bold">Plataforma</h1><form action={logout}><button className="underline">Salir</button></form></div>

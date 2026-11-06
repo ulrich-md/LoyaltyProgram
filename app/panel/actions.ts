@@ -15,21 +15,21 @@ export async function registerVisit(code: string): Promise<VisitResult> {
   const s = await requireStaff(["admin", "staff"]);
   const clean = String(code).trim().toUpperCase();
   if (!/^[0-9A-F]{16}$/.test(clean)) return { ok: false, error: "codigo_invalido" };
-  const r = ops.registerVisit(s.business!.id, clean, s.userId);
+  const r = await ops.registerVisit(s.business!.id, clean, s.userId);
   revalidatePath("/panel/clientes");
   return r;
 }
 
 export async function redeemReward(rewardId: string) {
   const s = await requireStaff(["admin", "staff"]);
-  const r = ops.redeemReward(s.business!.id, String(rewardId), s.userId);
+  const r = await ops.redeemReward(s.business!.id, String(rewardId), s.userId);
   revalidatePath("/panel/clientes");
   return r;
 }
 
 export async function voidVisit(visitId: string, reason: string) {
   const s = await requireStaff(["admin"]);
-  const r = ops.voidVisit(s.business!.id, String(visitId), s.userId, String(reason));
+  const r = await ops.voidVisit(s.business!.id, String(visitId), s.userId, String(reason));
   revalidatePath("/panel/clientes");
   return r;
 }

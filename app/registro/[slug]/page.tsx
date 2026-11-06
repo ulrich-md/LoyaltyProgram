@@ -13,23 +13,26 @@ async function register(slug: string, fd: FormData) {
   "use server";
   const parsed = schema.safeParse({ name: fd.get("name"), email: fd.get("email"), phone: fd.get("phone") || undefined });
   if (!parsed.success) redirect(`/registro/${slug}?error=datos`);
-  const b = q.get<{ id: string }>("select id from businesses where slug=? and active=1", slug);
+  const b = await q.get<{ id: string }>("select id from businesses where slug=$1 and active", slug);
   if (!b) notFound();
   const codes = newCodes();
+  let dup = false;
   try {
-    q.run("insert into customers(id,business_id,name,email,phone,card_token,qr_code) values (?,?,?,?,?,?,?)",
-      crypto.randomUUID(), b.id, parsed.data.name, parsed.data.email, parsed.data.phone ?? null, codes.card_token, codes.qr_code);
-  } catch {
-    // Correo ya registrado: no revelamos la tarjeta existente.
-    redirect(`/registro/${slug}?error=existe`);
+    await q.run("insert into customers(business_id,name,email,phone,card_token,qr_code) values ($1,$2,$3,$4,$5,$6)",
+      b.id, parsed.data.name, parsed.data.email, parsed.data.phone ?? null, codes.card_token, codes.qr_code);
+  } catch (e) {
+    if ((e as { code?: string }).code !== "23505") throw e;
+    dup = true;
   }
+  // Correo ya registrado: no revelamos la tarjeta existente.
+  if (dup) redirect(`/registro/${slug}?error=existe`);
   redirect(`/tarjeta/${codes.card_token}`);
 }
 
 export default async function Registro({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ error?: string }> }) {
   const { slug } = await params;
   const { error } = await searchParams;
-  const b = q.get<{ name: string; tagline: string; brand_primary: string; brand_soft: string; goal: number; reward: string }>("select name, tagline, brand_primary, brand_soft, goal, reward from businesses where slug=? and active=1", slug);
+  const b = await q.get<{ name: string; tagline: string; brand_primary: string; brand_soft: string; goal: number; reward: string }>("select name, tagline, brand_primary, brand_soft, goal, reward from businesses where slug=$1 and active", slug);
   if (!b) notFound();
   return (
     <main className="min-h-screen p-6" style={{ background: b.brand_soft, ["--brand" as string]: b.brand_primary }}>
