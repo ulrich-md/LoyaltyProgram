@@ -1,6 +1,6 @@
 # TUQO Lealtad
 
-Plataforma multi-negocio de tarjeta de cliente frecuente. Next.js 15 + TypeScript + Tailwind 4 + Supabase (Postgres + Auth). Interfaz en español.
+Plataforma multi-negocio de tarjeta de cliente frecuente. Next.js 15 + TypeScript + Tailwind 4 + SQLite (`node:sqlite`, Node 22+) con login propio. Interfaz en español.
 
 ## Cómo funciona
 1. Plataforma (`/plataforma`) crea un negocio (p. ej. `ibloom`) y usuarios de personal.
@@ -10,21 +10,20 @@ Plataforma multi-negocio de tarjeta de cliente frecuente. Next.js 15 + TypeScrip
 5. La administradora ajusta meta, beneficio, servicio elegible, límite diario y colores en `/panel/ajustes`.
 
 ## Seguridad
-- Todo acceso a datos es desde el servidor con la service role; RLS está activo sin políticas, por lo que el navegador no lee la base directamente.
+- Sin base de datos externa: un archivo SQLite local (`DATA_FILE`). La capa de datos está aislada en `lib/db.ts` y `lib/ops.ts` para migrar luego a Postgres.
+- Contraseñas con scrypt; sesiones con token aleatorio guardado como hash SHA-256, cookie `httpOnly`, 8 horas; máximo 5 intentos de login por correo cada 15 minutos.
 - El negocio de cada operación sale de la membresía del usuario autenticado, nunca de datos enviados por el cliente.
-- Visitas, canjes y anulaciones son funciones SQL atómicas (bloqueo de fila); límite de visitas por día por clienta en la zona horaria del negocio.
-- El QR es un código opaco distinto del enlace secreto de la tarjeta. Las visitas se anulan (no se borran) y quedan con motivo.
+- Visitas, canjes y anulaciones son transacciones atómicas; límite de visitas por día por clienta en la zona horaria del negocio.
+- El QR es un código opaco distinto del enlace secreto de la tarjeta. Las visitas se anulan (no se borran).
 
 ## Puesta en marcha
-1. Crea un proyecto Supabase; ejecuta `supabase/migrations/001_init.sql` y luego `supabase/seed.sql` (I Bloom de ejemplo).
-2. Copia `.env.example` a `.env.local` y completa las claves.
-3. Crea tu usuario en Supabase Auth y registra la membresía de plataforma:
-```sql
-insert into memberships(user_id, business_id, role, email) values ('UUID-AUTH', null, 'platform', 'tu@correo');
+```bash
+cp .env.example .env.local   # define BOOTSTRAP_EMAIL y BOOTSTRAP_PASSWORD (usuario de plataforma)
+npm install
+npm run dev
 ```
-4. `npm install && npm run dev`. La cámara requiere HTTPS (Vercel) o localhost.
+Al primer arranque se crea `data/app.db` con I Bloom de ejemplo (`/registro/ibloom`). Entra en `/login`, crea el personal en `/plataforma`. La cámara requiere HTTPS o localhost; para probar en un teléfono usa un túnel HTTPS.
 
-## Pendiente (fase 2)
-- Apple Wallet / Google Wallet (el modelo de datos ya separa tarjeta y QR; falta emitir y actualizar pases).
-- Límites de tasa por IP en registro/login en el borde, recuperación de contraseña, logo por negocio, pruebas automatizadas de interfaz.
-- Pruebas con Supabase real: la lógica SQL se validó en Postgres local; el flujo web con Auth aún no se ha ejecutado de punta a punta.
+## Pendiente
+- **Despliegue:** SQLite en un archivo no persiste en Vercel; para publicar usa un servidor con disco (VPS, Fly, Railway) o migra a Postgres/Turso.
+- Apple Wallet / Google Wallet (fase 2), recuperación de contraseña, límites por IP en el borde, logo por negocio.

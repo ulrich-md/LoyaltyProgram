@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { registerVisit, type VisitResult } from "@/app/panel/actions";
+import { registerVisit } from "@/app/panel/actions";
+import type { VisitResult } from "@/lib/ops";
 
 type Result = VisitResult;
 const errors: Record<string, string> = {

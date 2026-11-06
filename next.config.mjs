@@ -1,1 +1,1 @@
-const config = { poweredByHeader: false }; export default config;
+const config = { poweredByHeader: false, serverExternalPackages: [] }; export default config;

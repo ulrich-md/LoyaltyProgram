@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
-import { admin } from "@/lib/supabase";
+import { q } from "@/lib/db";
+import { newCodes } from "@/lib/ops";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -12,21 +13,23 @@ async function register(slug: string, fd: FormData) {
   "use server";
   const parsed = schema.safeParse({ name: fd.get("name"), email: fd.get("email"), phone: fd.get("phone") || undefined });
   if (!parsed.success) redirect(`/registro/${slug}?error=datos`);
-  const db = admin();
-  const { data: b } = await db.from("businesses").select("id").eq("slug", slug).eq("active", true).single();
+  const b = q.get<{ id: string }>("select id from businesses where slug=? and active=1", slug);
   if (!b) notFound();
-  const { data, error } = await db.from("customers")
-    .insert({ business_id: b.id, ...parsed.data }).select("card_token").single();
-  // Correo ya registrado: no revelamos la tarjeta existente.
-  if (error?.code === "23505") redirect(`/registro/${slug}?error=existe`);
-  if (error || !data) redirect(`/registro/${slug}?error=datos`);
-  redirect(`/tarjeta/${data.card_token}`);
+  const codes = newCodes();
+  try {
+    q.run("insert into customers(id,business_id,name,email,phone,card_token,qr_code) values (?,?,?,?,?,?,?)",
+      crypto.randomUUID(), b.id, parsed.data.name, parsed.data.email, parsed.data.phone ?? null, codes.card_token, codes.qr_code);
+  } catch {
+    // Correo ya registrado: no revelamos la tarjeta existente.
+    redirect(`/registro/${slug}?error=existe`);
+  }
+  redirect(`/tarjeta/${codes.card_token}`);
 }
 
 export default async function Registro({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ error?: string }> }) {
   const { slug } = await params;
   const { error } = await searchParams;
-  const { data: b } = await admin().from("businesses").select("name, tagline, brand_primary, brand_soft, goal, reward").eq("slug", slug).eq("active", true).single();
+  const b = q.get<{ name: string; tagline: string; brand_primary: string; brand_soft: string; goal: number; reward: string }>("select name, tagline, brand_primary, brand_soft, goal, reward from businesses where slug=? and active=1", slug);
   if (!b) notFound();
   return (
     <main className="min-h-screen p-6" style={{ background: b.brand_soft, ["--brand" as string]: b.brand_primary }}>

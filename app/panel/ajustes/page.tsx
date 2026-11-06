@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff } from "@/lib/auth";
-import { admin } from "@/lib/supabase";
+import { q } from "@/lib/db";
 
 const schema = z.object({
   tagline: z.string().trim().max(120),
@@ -18,7 +18,9 @@ async function save(fd: FormData) {
   const s = await requireStaff(["admin"]);
   const parsed = schema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return;
-  await admin().from("businesses").update(parsed.data).eq("id", s.business!.id);
+  const d = parsed.data;
+  q.run("update businesses set tagline=?,goal=?,reward=?,eligible_service=?,max_visits_per_day=?,brand_primary=?,brand_soft=? where id=?",
+    d.tagline, d.goal, d.reward, d.eligible_service, d.max_visits_per_day, d.brand_primary, d.brand_soft, s.business!.id);
   revalidatePath("/panel", "layout");
 }
 
