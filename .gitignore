@@ -6,6 +6,3 @@ next-env.d.ts
 *.tsbuildinfo
 data
 .neon
-firebase-debug.log
-firestore-debug.log
-.firebase
