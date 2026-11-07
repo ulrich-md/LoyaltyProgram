@@ -76,7 +76,10 @@ function ready(): Promise<void> {
   g.__ready ??= (async () => {
     const c = await pool().connect();
     try {
-      await c.query("select pg_advisory_lock(727001)");
+      // Bloqueo por transacción: funciona con el pooler de Neon (PgBouncer en modo transacción),
+      // donde un bloqueo de sesión podría quedar retenido en otra conexión.
+      await c.query("begin");
+      await c.query("select pg_advisory_xact_lock(727001)");
       await c.query(SCHEMA);
       if ((await c.query("select 1 from businesses limit 1")).rowCount === 0)
         await c.query("insert into businesses(slug,name,tagline,goal,reward,eligible_service) values ('ibloom','I Bloom Spa','Tu bienestar tiene recompensa.',6,'Facial de cortesía','Faciales y masajes')");
@@ -85,8 +88,8 @@ function ready(): Promise<void> {
         const u = await c.query("insert into users(email,password_hash) values ($1,$2) on conflict (email) do update set password_hash=excluded.password_hash returning id", [email, hashPassword(pass)]);
         await c.query("insert into memberships(user_id,business_id,role) values ($1,null,'platform')", [u.rows[0].id]);
       }
-      await c.query("select pg_advisory_unlock(727001)");
-    } finally { c.release(); }
+      await c.query("commit");
+    } catch (e) { await c.query("rollback").catch(() => {}); throw e; } finally { c.release(); }
   })().catch((e) => { g.__ready = undefined; throw e; });
   return g.__ready;
 }
