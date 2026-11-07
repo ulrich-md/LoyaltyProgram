@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { q } from "@/lib/db";
+import { getCard } from "@/lib/store";
 import { ProgressDots } from "@/components/ProgressDots";
 
 export const dynamic = "force-dynamic";
@@ -8,12 +8,11 @@ export const metadata = { robots: { index: false, follow: false } };
 
 export default async function Tarjeta({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const c = await q.get<{ id: string; name: string; qr_code: string; business_id: string }>("select id, name, qr_code, business_id from customers where card_token=$1", token);
-  if (!c) notFound();
-  const b = await q.get<{ name: string; brand_primary: string; brand_soft: string; goal: number; reward: string }>("select name, brand_primary, brand_soft, goal, reward from businesses where id=$1", c.business_id);
-  if (!b) notFound();
-  const count = (await q.get<{ n: number }>("select count(*)::int n from visits where customer_id=$1 and voided_at is null and reward_id is null", c.id))!.n;
-  const rewards = await q.all("select id from rewards where customer_id=$1 and redeemed_at is null", c.id);
+  const card = await getCard(token);
+  if (!card) notFound();
+  const { customer: c, business: b } = card;
+  const count = c.progress;
+  const rewards = { length: card.pendingRewards };
   const qr = await QRCode.toDataURL(c.qr_code, { margin: 1, width: 360 });
   return (
     <main className="min-h-screen p-4" style={{ background: b.brand_soft }}>

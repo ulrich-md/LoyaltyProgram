@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff } from "@/lib/auth";
-import { q, tx } from "@/lib/db";
+import { createBusiness as addBusiness, createStaff, listBusinesses } from "@/lib/store";
 import { hashPassword } from "@/lib/password";
 import { logout } from "../panel/actions";
 
@@ -10,7 +10,7 @@ async function createBusiness(fd: FormData) {
   await requireStaff(["platform"]);
   const p = z.object({ slug: z.string().regex(/^[a-z0-9-]{2,40}$/), name: z.string().trim().min(2).max(80) }).safeParse(Object.fromEntries(fd));
   if (!p.success) return;
-  try { await q.run("insert into businesses(slug,name) values ($1,$2)", p.data.slug, p.data.name); } catch { /* slug duplicado */ }
+  await addBusiness(p.data.slug, p.data.name); // false si el slug ya existe
   revalidatePath("/plataforma");
 }
 
@@ -18,22 +18,17 @@ async function addStaff(fd: FormData) {
   "use server";
   await requireStaff(["platform"]);
   const p = z.object({
-    business_id: z.string().uuid(), email: z.string().trim().toLowerCase().email(),
+    business_id: z.string().regex(/^[a-z0-9-]{2,40}$/), email: z.string().trim().toLowerCase().email(),
     password: z.string().min(10).max(72), role: z.enum(["admin", "staff"]),
   }).safeParse(Object.fromEntries(fd));
   if (!p.success) return;
-  try {
-    await tx(async (t) => {
-      const u = (await t.get<{ id: string }>("insert into users(email,password_hash) values ($1,$2) returning id", p.data.email, hashPassword(p.data.password)))!;
-      await t.run("insert into memberships(user_id,business_id,role) values ($1,$2,$3)", u.id, p.data.business_id, p.data.role);
-    });
-  } catch { return; /* correo ya existe */ }
+  await createStaff(p.data.email, hashPassword(p.data.password), p.data.role, p.data.business_id); // false si el correo ya existe
   revalidatePath("/plataforma");
 }
 
 export default async function Plataforma() {
   await requireStaff(["platform"]);
-  const businesses = await q.all<{ id: string; slug: string; name: string }>("select id, slug, name from businesses order by created_at");
+  const businesses = await listBusinesses();
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex justify-between"><h1 className="text-xl font-bold">Plataforma</h1><form action={logout}><button className="underline">Salir</button></form></div>

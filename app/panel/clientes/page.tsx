@@ -1,5 +1,5 @@
 import { requireStaff } from "@/lib/auth";
-import { q as db } from "@/lib/db";
+import { listCustomers, listPendingRewards } from "@/lib/store";
 import { redeemReward } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -7,15 +7,9 @@ export const dynamic = "force-dynamic";
 export default async function Clientes({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const s = await requireStaff(["admin", "staff"]);
   const { q } = await searchParams;
-  const like = `%${(q ?? "").replace(/[\\%_]/g, "\\$&")}%`;
-  const customers = await db.all<{ id: string; name: string; email: string; qr_code: string }>(
-    "select id, name, email, qr_code from customers where business_id=$1 and (name ilike $2 or email ilike $2) order by created_at desc limit 50",
-    s.business!.id, like);
-  const visits = await db.all<{ customer_id: string; n: number }>(
-    "select customer_id, count(*)::int n from visits where business_id=$1 and voided_at is null and reward_id is null group by customer_id", s.business!.id);
-  const rewards = await db.all<{ id: string; customer_id: string; description: string }>(
-    "select id, customer_id, description from rewards where business_id=$1 and redeemed_at is null", s.business!.id);
-  const progress = (id: string) => visits.find((v) => v.customer_id === id)?.n ?? 0;
+  const customers = await listCustomers(s.business!.id, q);
+  const rewards = await listPendingRewards(s.business!.id);
+  const progress = (id: string) => customers.find((c) => c.id === id)?.progress ?? 0;
   return (
     <>
       <form className="mb-4"><input className="input" name="q" defaultValue={q} placeholder="Buscar por nombre o correo" /></form>
