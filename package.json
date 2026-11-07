@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@neon/config": "^1.13.0",
+    "@neon/env": "^2.0.1",
     "html5-qrcode": "^2.3.8",
     "next": "^15.5.29",
     "pg": "^8.23.1",
